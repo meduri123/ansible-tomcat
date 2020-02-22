@@ -1,0 +1,10 @@
+# Here are variables related to the Tomcat installation
+
+http_port: 8090
+https_port: 8443
+
+#sed -i 's/http_port/http_port=8080/g' server.xml
+# This will configure a default manager-gui user:
+
+admin_username: admin
+admin_password: adminsecret

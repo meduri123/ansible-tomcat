@@ -1,0 +1,71 @@
+---
+- name: Install Java
+  yum: name=java-11-openjdk.x86_64 state=present
+
+#- name: add group "tomcat"
+#  group: name=tomcat
+
+#- name: add user "tomcat"
+#  user: name=tomcat group=tomcat home=/usr/share/tomcat createhome=no
+#  become: True
+#  become_method: sudo
+
+- name: Download Tomcat
+  get_url: url=http://archive.apache.org/dist/tomcat/tomcat-7/v7.0.61/bin/apache-tomcat-7.0.61.tar.gz dest=/home/localadmin/test/ansible-examples/tomcat-standalone/apache-tomcat-7.0.61.tar.gz
+
+- name: download and extract trex
+  unarchive:
+    src: /home/localadmin/test/ansible-examples/tomcat-standalone/apache-tomcat-7.0.61.tar.gz
+    dest: /home/localadmin/test/ansible-examples/tomcat-standalone/
+    remote_src: yes
+
+#- name: change directory  
+#  command: chdir=/home/localadmin/test/ansible-examples/ mode=0755
+
+#- name: Extract archive
+#  command: tar -xvf /home/localadmin/test/ansible-examples/tomcat-standalone/apache-tomcat-7.0.61.tar.gz
+
+#- name: Symlink install directory
+#  file: src=/home/localadmin/test/ansible-examples/tomcat-standalone/apache-tomcat-7.0.61 path=/home/localadmin/test/ansible-examples/tomcat-standalone/share/tomcat state=link
+
+#- name: Change ownership of Tomcat installation
+#  file: path=/home/localadmin/test/ansible-examples/tomcat-standalone/share/tomcat/ owner=tomcat group=tomcat state=directory recurse=yes
+
+- name: Configure copt server file Tomcat server
+  template: src=server.xml dest=/home/localadmin/test/ansible-examples/tomcat-standalone/share/tomcat/conf/
+  notify: restart tomcat
+
+- name: Configure Tomcat users
+  template: src=tomcat-users.xml dest=/home/localadmin/test/ansible-examples/tomcat-standalone/share/tomcat/conf/
+
+- name: copy http port and restart  
+  command: sed -i 's/port/port="9999"/g' /home/localadmin/test/ansible-examples/tomcat-standalone/apache-tomcat-7.0.61/conf/server.xml
+  notify: restart tomcat
+
+- name: Install Tomcat init script
+  copy: src=tomcat-initscript.sh dest=/home/localadmin/test/ansible-examples/tomcat-standalone/share/tomcat/conf/ mode=0755
+
+#- name: start tomcat
+#  systemd:
+#   state: restarted
+#   daemon_reload: yes
+#   name: tomcat
+- name: Start Tomcat
+#  systemd: name=tomcat state=restarted enabled=yes
+  command: /home/localadmin/test/ansible-examples/tomcat-standalone/apache-tomcat-7.0.61/bin/startup.sh 
+
+- name: deploy iptables rules
+  template: src=iptables-save dest=/etc/sysconfig/iptables
+  when: "ansible_os_family == 'RedHat' and ansible_distribution_major_version == '6'"
+  notify: restart iptables
+
+- name: insert firewalld rule for tomcat http port
+  firewalld: port={{ http_port }}/tcp permanent=true state=enabled immediate=yes
+  when: "ansible_os_family == 'RedHat' and ansible_distribution_major_version == '7'"
+
+- name: insert firewalld rule for tomcat https port
+  firewalld: port={{ https_port }}/tcp permanent=true state=enabled immediate=yes
+  when: "ansible_os_family == 'RedHat' and ansible_distribution_major_version == '7'"
+
+- name: wait for tomcat to start
+  wait_for: port={{http_port}}
